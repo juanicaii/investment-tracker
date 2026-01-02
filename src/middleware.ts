@@ -1,30 +1,49 @@
-import { auth } from "@/lib/auth";
+import { NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
+import { getToken } from "next-auth/jwt";
 
-export default auth((req) => {
-  const isLoggedIn = !!req.auth;
+export async function middleware(req: NextRequest) {
+  const token = await getToken({ req, secret: process.env.AUTH_SECRET });
+  const isLoggedIn = !!token;
+
   const { pathname } = req.nextUrl;
 
-  console.log("[Middleware]", { pathname, isLoggedIn, auth: req.auth });
+  console.log("[Middleware]", { pathname, isLoggedIn, hasToken: !!token });
 
-  // Allow auth API routes
-  if (pathname.startsWith("/api/auth")) {
-    return;
+  const isProtectedRoute =
+    pathname.startsWith("/dashboard") ||
+    pathname.startsWith("/transactions") ||
+    pathname.startsWith("/assets") ||
+    pathname.startsWith("/chat");
+  const isOnLogin = pathname.startsWith("/login");
+  const isOnApi = pathname.startsWith("/api");
+  const isOnAuth = pathname.startsWith("/api/auth");
+
+  // Protect app routes
+  if (isProtectedRoute && !isLoggedIn) {
+    return NextResponse.redirect(new URL("/login", req.url));
   }
 
-  // Allow login page for non-logged-in users
-  if (pathname === "/login") {
-    if (isLoggedIn) {
-      return Response.redirect(new URL("/dashboard", req.url));
-    }
-    return;
+  // Redirect logged-in users away from login page
+  if (isOnLogin && isLoggedIn) {
+    return NextResponse.redirect(new URL("/dashboard", req.url));
   }
 
-  // Protect all other routes
-  if (!isLoggedIn) {
-    return Response.redirect(new URL("/login", req.url));
+  // Protect API routes (except auth)
+  if (isOnApi && !isOnAuth && !isLoggedIn) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-});
+
+  return NextResponse.next();
+}
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon\\.ico|icons|manifest\\.json|sw\\.js|.*\\.png|.*\\.svg).*)"],
+  matcher: [
+    "/dashboard/:path*",
+    "/transactions/:path*",
+    "/assets/:path*",
+    "/chat/:path*",
+    "/login",
+    "/api/((?!auth).*)",
+  ],
 };
