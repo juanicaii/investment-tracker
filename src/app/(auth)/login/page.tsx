@@ -31,16 +31,18 @@ export default function LoginPage() {
         email,
         password,
         redirect: false,
+        callbackUrl: "/dashboard",
       });
 
       if (result?.error) {
         setError("Invalid email or password");
-      } else {
-        window.location.href = "/dashboard";
+        setIsLoading(false);
+      } else if (result?.ok) {
+        router.push("/dashboard");
+        router.refresh();
       }
     } catch {
       setError("An error occurred. Please try again.");
-    } finally {
       setIsLoading(false);
     }
   };
