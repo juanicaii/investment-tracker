@@ -1,27 +1,23 @@
 import type { Metadata, Viewport } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { JetBrains_Mono } from "next/font/google";
 import { SessionProvider } from "next-auth/react";
 import { Toaster } from "@/components/ui/sonner";
 import "./globals.css";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+const jetbrainsMono = JetBrains_Mono({
+  variable: "--font-mono",
   subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
+  display: "swap",
 });
 
 export const metadata: Metadata = {
-  title: "Investment Tracker",
+  title: "InvestTracker",
   description: "Track your investments in CEDEARs, crypto, and Argentine stocks",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "InvestTrack",
+    title: "InvestTracker",
   },
   icons: {
     icon: "/favicon.png",
@@ -30,7 +26,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#10b981",
+  themeColor: "#0c0a09",
   width: "device-width",
   initialScale: 1,
   maximumScale: 1,
@@ -42,8 +38,13 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" className="dark">
       <head>
+        {/* Satoshi font from Fontshare */}
+        <link
+          href="https://api.fontshare.com/v2/css?f[]=satoshi@400,500,700,900&display=swap"
+          rel="stylesheet"
+        />
         <script
           dangerouslySetInnerHTML={{
             __html: `
@@ -56,9 +57,7 @@ export default function RootLayout({
           }}
         />
       </head>
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-      >
+      <body className={`${jetbrainsMono.variable} antialiased grain`}>
         <SessionProvider>
           {children}
           <Toaster />

@@ -3,13 +3,6 @@
 import { useEffect, useState, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -28,7 +21,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
@@ -47,7 +39,7 @@ interface Asset {
 }
 
 function formatCurrency(value: number, currency: string = "ARS"): string {
-  return new Intl.NumberFormat("es-AR", {
+  return new Intl.NumberFormat("en-US", {
     style: "currency",
     currency,
     minimumFractionDigits: 2,
@@ -59,22 +51,20 @@ function getTypeLabel(type: string): string {
     case "cedear": return "CEDEAR";
     case "arg_stock": return "ARG";
     case "stock": return "US";
-    case "crypto": return "Crypto";
-    case "stablecoin": return "Stable";
-    default: return type;
+    case "crypto": return "CRYPTO";
+    case "stablecoin": return "STABLE";
+    default: return type.toUpperCase();
   }
 }
 
-function getTypeColor(type: string): string {
-  switch (type) {
-    case "cedear": return "bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20";
-    case "arg_stock": return "bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border-cyan-500/20";
-    case "stock": return "bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/20";
-    case "crypto": return "bg-orange-500/10 text-orange-600 dark:text-orange-400 border-orange-500/20";
-    case "stablecoin": return "bg-green-500/10 text-green-600 dark:text-green-400 border-green-500/20";
-    default: return "bg-gray-500/10 text-gray-600 border-gray-500/20";
-  }
-}
+const typeFilters = [
+  { value: "all", label: "All" },
+  { value: "cedear", label: "CEDEARs" },
+  { value: "arg_stock", label: "ARG" },
+  { value: "stock", label: "US" },
+  { value: "crypto", label: "Crypto" },
+  { value: "stablecoin", label: "Stable" },
+];
 
 export default function AssetsPage() {
   const [assets, setAssets] = useState<Asset[]>([]);
@@ -84,6 +74,7 @@ export default function AssetsPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   const [editingAsset, setEditingAsset] = useState<Asset | null>(null);
+  const [activeFilter, setActiveFilter] = useState("all");
 
   const [formData, setFormData] = useState({
     ticker: "",
@@ -115,7 +106,7 @@ export default function AssetsPage() {
       setAssets(data);
     } catch (error) {
       console.error("Error fetching assets:", error);
-      toast.error("Error al cargar activos");
+      toast.error("Failed to load assets");
     } finally {
       setIsLoading(false);
     }
@@ -133,14 +124,14 @@ export default function AssetsPage() {
       const data = await res.json();
 
       if (data.errors?.length > 0) {
-        toast.warning(`Sincronizado con ${data.errors.length} errores`);
+        toast.warning(`Synced with ${data.errors.length} errors`);
       } else {
-        toast.success(`Actualizadas ${data.updated} cotizaciones`);
+        toast.success(`Updated ${data.updated} quotes`);
       }
       await fetchAssets();
     } catch (error) {
       console.error("Error syncing quotes:", error);
-      toast.error("Error al sincronizar");
+      toast.error("Failed to sync");
     } finally {
       setIsSyncing(false);
     }
@@ -179,7 +170,7 @@ export default function AssetsPage() {
         throw new Error(error.error || "Failed to create asset");
       }
 
-      toast.success("Activo creado");
+      toast.success("Asset created");
       setIsDialogOpen(false);
       setFormData({
         ticker: "", name: "", type: "cedear", currency: "ARS",
@@ -188,7 +179,7 @@ export default function AssetsPage() {
       fetchAssets();
     } catch (error) {
       console.error("Error creating asset:", error);
-      toast.error(error instanceof Error ? error.message : "Error al crear");
+      toast.error(error instanceof Error ? error.message : "Failed to create");
     } finally {
       setIsSubmitting(false);
     }
@@ -243,20 +234,20 @@ export default function AssetsPage() {
         throw new Error(error.error || "Failed to update asset");
       }
 
-      toast.success("Activo actualizado");
+      toast.success("Asset updated");
       setIsEditDialogOpen(false);
       setEditingAsset(null);
       fetchAssets();
     } catch (error) {
       console.error("Error updating asset:", error);
-      toast.error(error instanceof Error ? error.message : "Error al actualizar");
+      toast.error(error instanceof Error ? error.message : "Failed to update");
     } finally {
       setIsSubmitting(false);
     }
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm("Estas seguro que queres eliminar este activo?")) return;
+    if (!confirm("Delete this asset?")) return;
 
     try {
       const res = await fetch(`/api/assets?id=${id}`, { method: "DELETE" });
@@ -264,71 +255,26 @@ export default function AssetsPage() {
         const error = await res.json();
         throw new Error(error.error || "Failed to delete");
       }
-      toast.success("Activo eliminado");
+      toast.success("Asset deleted");
       fetchAssets();
     } catch (error) {
       console.error("Error deleting asset:", error);
-      toast.error(error instanceof Error ? error.message : "Error al eliminar");
+      toast.error(error instanceof Error ? error.message : "Failed to delete");
     }
   };
 
-  const filterAssetsByType = (type: string) => assets.filter((a) => a.type === type);
+  const filteredAssets = activeFilter === "all" 
+    ? assets 
+    : assets.filter(a => a.type === activeFilter);
 
   if (isLoading) {
     return (
-      <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <Skeleton className="h-8 w-32" />
-          <Skeleton className="h-10 w-28" />
-        </div>
+      <div className="space-y-8">
+        <Skeleton className="h-12 w-48" />
         <Skeleton className="h-96" />
       </div>
     );
   }
-
-  const AssetCard = ({ asset }: { asset: Asset }) => (
-    <div className="flex items-center justify-between p-4 rounded-xl bg-muted/30 hover:bg-muted/50 transition-colors group">
-      <div className="flex items-center gap-3 min-w-0 flex-1">
-        <div className={cn(
-          "w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm flex-shrink-0",
-          getTypeColor(asset.type)
-        )}>
-          {asset.ticker.slice(0, 2)}
-        </div>
-        <div className="min-w-0">
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="font-semibold">{asset.ticker}</span>
-            <Badge variant="outline" className={cn("text-xs", getTypeColor(asset.type))}>
-              {getTypeLabel(asset.type)}
-            </Badge>
-          </div>
-          <p className="text-sm text-muted-foreground truncate">{asset.name}</p>
-        </div>
-      </div>
-      
-      <div className="flex items-center gap-2 sm:gap-4">
-        <div className="text-right">
-          <p className="font-semibold text-sm sm:text-base">
-            {asset.latestPrice ? formatCurrency(asset.latestPrice, asset.currency) : "-"}
-          </p>
-          <p className="text-xs text-muted-foreground">{asset.currency}</p>
-        </div>
-        
-        <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEditDialog(asset)}>
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-            </svg>
-          </Button>
-          <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" onClick={() => handleDelete(asset.id)}>
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-            </svg>
-          </Button>
-        </div>
-      </div>
-    </div>
-  );
 
   const AssetForm = ({ 
     data, 
@@ -344,16 +290,16 @@ export default function AssetsPage() {
     <form onSubmit={onSubmit} className="space-y-4">
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
-          <Label>Ticker</Label>
+          <Label className="text-xs uppercase tracking-wider text-muted-foreground">Ticker</Label>
           <Input
             value={data.ticker}
             onChange={(e) => setData((f) => ({ ...f, ticker: e.target.value.toUpperCase() }))}
             placeholder="AAPL"
             required
-          />
+            />
         </div>
         <div className="space-y-2">
-          <Label>Tipo</Label>
+          <Label className="text-xs uppercase tracking-wider text-muted-foreground">Type</Label>
           <Select
             value={data.type}
             onValueChange={(v: Asset["type"]) => {
@@ -367,8 +313,8 @@ export default function AssetsPage() {
             <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="cedear">CEDEAR</SelectItem>
-              <SelectItem value="arg_stock">Accion Argentina</SelectItem>
-              <SelectItem value="stock">Accion US</SelectItem>
+              <SelectItem value="arg_stock">ARG Stock</SelectItem>
+              <SelectItem value="stock">US Stock</SelectItem>
               <SelectItem value="crypto">Crypto</SelectItem>
               <SelectItem value="stablecoin">Stablecoin</SelectItem>
             </SelectContent>
@@ -377,7 +323,7 @@ export default function AssetsPage() {
       </div>
       
       <div className="space-y-2">
-        <Label>Nombre</Label>
+        <Label className="text-xs uppercase tracking-wider text-muted-foreground">Name</Label>
         <Input
           value={data.name}
           onChange={(e) => setData((f) => ({ ...f, name: e.target.value }))}
@@ -387,7 +333,7 @@ export default function AssetsPage() {
       </div>
       
       <div className="space-y-2">
-        <Label>Moneda</Label>
+        <Label className="text-xs uppercase tracking-wider text-muted-foreground">Currency</Label>
         <Select value={data.currency} onValueChange={(v) => setData((f) => ({ ...f, currency: v }))}>
           <SelectTrigger><SelectValue /></SelectTrigger>
           <SelectContent>
@@ -399,22 +345,20 @@ export default function AssetsPage() {
 
       {(data.type === "cedear" || data.type === "arg_stock" || data.type === "stock") && (
         <div className="space-y-2">
-          <Label>Yahoo Finance Ticker</Label>
+          <Label className="text-xs uppercase tracking-wider text-muted-foreground">Yahoo Finance Ticker</Label>
           <Input
             value={data.yahooTicker}
             onChange={(e) => setData((f) => ({ ...f, yahooTicker: e.target.value }))}
             placeholder={data.type === "stock" ? data.ticker || "AAPL" : `${data.ticker || "AAPL"}.BA`}
-          />
-          <p className="text-xs text-muted-foreground">
-            Dejar vacio para auto-generar
-          </p>
+            />
+          <p className="text-xs text-muted-foreground">Leave empty to auto-generate</p>
         </div>
       )}
 
       {data.type === "cedear" && (
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-2">
-            <Label>Ticker Subyacente</Label>
+            <Label className="text-xs uppercase tracking-wider text-muted-foreground">Underlying Ticker</Label>
             <Input
               value={data.underlyingTicker}
               onChange={(e) => setData((f) => ({ ...f, underlyingTicker: e.target.value }))}
@@ -422,7 +366,7 @@ export default function AssetsPage() {
             />
           </div>
           <div className="space-y-2">
-            <Label>Ratio</Label>
+            <Label className="text-xs uppercase tracking-wider text-muted-foreground">Ratio</Label>
             <Input
               value={data.conversionRatio}
               onChange={(e) => setData((f) => ({ ...f, conversionRatio: e.target.value }))}
@@ -434,119 +378,151 @@ export default function AssetsPage() {
 
       {(data.type === "crypto" || data.type === "stablecoin") && (
         <div className="space-y-2">
-          <Label>CoinGecko ID</Label>
+          <Label className="text-xs uppercase tracking-wider text-muted-foreground">CoinGecko ID</Label>
           <Input
             value={data.coingeckoId}
             onChange={(e) => setData((f) => ({ ...f, coingeckoId: e.target.value }))}
             placeholder="bitcoin"
-          />
+            />
         </div>
       )}
 
       <Button type="submit" disabled={isSubmitting} className="w-full">
-        {isSubmitting ? "Guardando..." : submitLabel}
+        {isSubmitting ? "Saving..." : submitLabel}
       </Button>
     </form>
   );
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-bold">Activos</h1>
-          <p className="text-muted-foreground text-sm">{assets.length} activos disponibles</p>
+      <header className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 animate-fade-up">
+        <div className="space-y-1">
+          <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground font-medium">
+            Asset Library
+          </p>
+          <h1 className="text-4xl sm:text-5xl font-bold tracking-tighter">
+            {assets.length}
+            <span className="text-muted-foreground font-normal text-2xl ml-2">assets</span>
+          </h1>
         </div>
         <div className="flex gap-2">
           <Button variant="outline" size="sm" onClick={syncQuotes} disabled={isSyncing} className="gap-2">
             <svg className={cn("w-4 h-4", isSyncing && "animate-spin")} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
             </svg>
-            <span className="hidden sm:inline">{isSyncing ? "Sincronizando..." : "Sincronizar"}</span>
+            {isSyncing ? "Syncing..." : "Sync"}
           </Button>
           
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>
               <Button size="sm" className="gap-2">
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 4v16m8-8H4" />
                 </svg>
-                Agregar
+                Add
               </Button>
             </DialogTrigger>
             <DialogContent>
               <DialogHeader>
-                <DialogTitle>Nuevo Activo</DialogTitle>
-                <DialogDescription>Agrega un activo para trackear</DialogDescription>
+                <DialogTitle>New Asset</DialogTitle>
+                <DialogDescription>Add an asset to track</DialogDescription>
               </DialogHeader>
-              <AssetForm data={formData} setData={setFormData} onSubmit={handleSubmit} submitLabel="Crear Activo" />
+              <AssetForm data={formData} setData={setFormData} onSubmit={handleSubmit} submitLabel="Create Asset" />
             </DialogContent>
           </Dialog>
         </div>
+      </header>
+
+      {/* Filter tabs */}
+      <div className="flex flex-wrap gap-2 animate-fade-up stagger-1">
+        {typeFilters.map((filter) => {
+          const count = filter.value === "all" 
+            ? assets.length 
+            : assets.filter(a => a.type === filter.value).length;
+          
+          return (
+            <button
+              key={filter.value}
+              onClick={() => setActiveFilter(filter.value)}
+              className={cn(
+                "px-3 py-1.5 text-sm transition-colors border rounded-full",
+                activeFilter === filter.value
+                  ? "bg-foreground text-background border-foreground"
+                  : "bg-transparent text-muted-foreground border-border hover:border-foreground hover:text-foreground"
+              )}
+            >
+              {filter.label}
+              <span className="ml-1.5 text-xs opacity-60">{count}</span>
+            </button>
+          );
+        })}
       </div>
 
-      {/* Assets List */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-            </svg>
-            Activos Disponibles
-          </CardTitle>
-          <CardDescription>Activos que podes trackear en tu portfolio</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Tabs defaultValue="all">
-            <TabsList className="flex flex-wrap h-auto gap-1 bg-transparent p-0 mb-4">
-              <TabsTrigger value="all" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-full px-3 py-1 text-sm">
-                Todos ({assets.length})
-              </TabsTrigger>
-              <TabsTrigger value="cedear" className="data-[state=active]:bg-blue-500 data-[state=active]:text-white rounded-full px-3 py-1 text-sm">
-                CEDEARs ({filterAssetsByType("cedear").length})
-              </TabsTrigger>
-              <TabsTrigger value="arg_stock" className="data-[state=active]:bg-cyan-500 data-[state=active]:text-white rounded-full px-3 py-1 text-sm">
-                ARG ({filterAssetsByType("arg_stock").length})
-              </TabsTrigger>
-              <TabsTrigger value="stock" className="data-[state=active]:bg-purple-500 data-[state=active]:text-white rounded-full px-3 py-1 text-sm">
-                US ({filterAssetsByType("stock").length})
-              </TabsTrigger>
-              <TabsTrigger value="crypto" className="data-[state=active]:bg-orange-500 data-[state=active]:text-white rounded-full px-3 py-1 text-sm">
-                Crypto ({filterAssetsByType("crypto").length})
-              </TabsTrigger>
-              <TabsTrigger value="stablecoin" className="data-[state=active]:bg-green-500 data-[state=active]:text-white rounded-full px-3 py-1 text-sm">
-                Stable ({filterAssetsByType("stablecoin").length})
-              </TabsTrigger>
-            </TabsList>
-            
-            {["all", "cedear", "arg_stock", "stock", "crypto", "stablecoin"].map((tab) => (
-              <TabsContent key={tab} value={tab} className="space-y-2">
-                {(tab === "all" ? assets : filterAssetsByType(tab)).length === 0 ? (
-                  <div className="text-center py-12">
-                    <svg className="w-12 h-12 text-muted-foreground/50 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-                    </svg>
-                    <p className="text-muted-foreground">No hay activos en esta categoria</p>
+      {/* Assets Grid */}
+      {filteredAssets.length === 0 ? (
+        <div className="text-center py-20 border border-dashed border-border rounded-xl animate-fade-up stagger-2">
+          <p className="text-muted-foreground mb-2">No assets in this category</p>
+        </div>
+      ) : (
+        <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 animate-fade-up stagger-2">
+          {filteredAssets.map((asset, index) => (
+            <div
+              key={asset.id}
+              className="group bg-secondary/30 rounded-xl p-5 hover:bg-secondary/50 transition-colors animate-fade-up"
+              style={{ animationDelay: `${0.2 + index * 0.02}s` }}
+            >
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-12 h-12 bg-background rounded-lg flex items-center justify-center font-bold text-sm flex-shrink-0">
+                    {asset.ticker.slice(0, 3)}
                   </div>
-                ) : (
-                  (tab === "all" ? assets : filterAssetsByType(tab)).map((asset) => (
-                    <AssetCard key={asset.id} asset={asset} />
-                  ))
-                )}
-              </TabsContent>
-            ))}
-          </Tabs>
-        </CardContent>
-      </Card>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-semibold">{asset.ticker}</span>
+                      <Badge variant="outline" className="text-[10px] px-1.5 py-0">
+                        {getTypeLabel(asset.type)}
+                      </Badge>
+                    </div>
+                    <p className="text-sm text-muted-foreground truncate">{asset.name}</p>
+                  </div>
+                </div>
+                
+                <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <Button variant="ghost" size="icon-sm" onClick={() => openEditDialog(asset)}>
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                    </svg>
+                  </Button>
+                  <Button variant="ghost" size="icon-sm" className="text-destructive hover:text-destructive" onClick={() => handleDelete(asset.id)}>
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                  </Button>
+                </div>
+              </div>
+              
+              <div className="mt-4 pt-4 border-t border-border/50">
+                <div className="flex items-baseline justify-between">
+                  <span className="text-xs text-muted-foreground uppercase tracking-wide">Price</span>
+                  <span className="font-semibold tabular-nums">
+                    {asset.latestPrice ? formatCurrency(asset.latestPrice, asset.currency) : "—"}
+                  </span>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Edit Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Editar Activo</DialogTitle>
-            <DialogDescription>Modifica los detalles del activo</DialogDescription>
+            <DialogTitle>Edit Asset</DialogTitle>
+            <DialogDescription>Modify asset details</DialogDescription>
           </DialogHeader>
-          <AssetForm data={editFormData} setData={setEditFormData} onSubmit={handleEditSubmit} submitLabel="Guardar Cambios" />
+          <AssetForm data={editFormData} setData={setEditFormData} onSubmit={handleEditSubmit} submitLabel="Save Changes" />
         </DialogContent>
       </Dialog>
     </div>
